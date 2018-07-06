@@ -26,6 +26,7 @@
   "bugs": "https://github.com/lynndylanhurley/j-toker/issues",
   "license": "WTFPL",
   "scripts": {
+    "prepublish": "grunt",
     "test": "grunt"
   },
   "dependencies": {
