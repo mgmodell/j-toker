@@ -1,15 +1,14 @@
 {
   "name": "j-toker",
-  "version": "0.0.10-beta3",
+  "version": "1.0.0",
   "description": "Simple, secure token authentication for jQuery.",
   "main": "dist/jquery.j-toker.js",
   "engines": {
     "node": "8.1.4"
   },
   "keywords": [
-    "jquery-plugin",
-    "jquery",
-    "react",
+    "devise",
+    "omniauth",
     "token",
     "auth",
     "authentication",
@@ -17,11 +16,18 @@
     "oauth2",
     "oauth"
   ],
-  "author": {
-    "name": "Lynn Dylan Hurley",
-    "email": "lynn.dylan.hurley@gmail.com",
-    "url": "https://github.com/lynndylanhurley"
-  },
+  "authors": [
+    {
+      "name": "Lynn Dylan Hurley",
+      "email": "lynn.dylan.hurley@gmail.com",
+      "url": "https://github.com/lynndylanhurley"
+    },
+    {
+      "name": "Anton Rusinov",
+      "email": "hello.rusinov@gmail.com",
+      "url": "https://github.com/RusinovAnton"
+    }
+  ],
   "repository": "lynndylanhurley/j-toker",
   "bugs": "https://github.com/lynndylanhurley/j-toker/issues",
   "license": "WTFPL",
@@ -30,9 +36,11 @@
     "test": "grunt"
   },
   "dependencies": {
-    "jquery": ">1.11.2",
-    "jquery-deparam": "^0.1.0",
-    "jquery.cookie": "^1.4.1",
+    "fetch-intercept": "^2.2.3",
+    "js-cookie": "^2.2.0",
+    "qs": "^6.5.2"
+  },
+  "peerDependencies": {
     "pubsub-js": "^1.5.2"
   },
   "devDependencies": {
