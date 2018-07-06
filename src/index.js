@@ -225,13 +225,13 @@ export class Auth {
       warnings = [];
 
     if (!$) {
-      throw 'jToker: jQuery not found. This module depends on jQuery.';
+      throw 'es-toker: jQuery not found. This module depends on jQuery.';
     }
 
     if (!root.localStorage && !Cookies) {
       errors.push(
         'This browser does not support localStorage. You must install ' +
-          'jquery-cookie to use jToker with this browser.'
+          'jquery-cookie to use es-toker with this browser.'
       );
     }
 
@@ -245,12 +245,12 @@ export class Auth {
 
     if (errors.length) {
       var errMessage = errors.join(' ');
-      throw 'jToker: Please resolve the following errors: ' + errMessage;
+      throw 'es-toker: Please resolve the following errors: ' + errMessage;
     }
 
     if (warnings.length && console && console.warn) {
       var warnMessage = warnings.join(' ');
-      console.warn('jToker: Warning: ' + warnMessage);
+      console.warn('es-toker: Warning: ' + warnMessage);
     }
   }
 
@@ -330,6 +330,7 @@ export class Auth {
     }
 
     // ensure that setup requirements have been met
+    // FIXME:
     this.checkDependencies();
 
     // TODO: add config option for these bindings
@@ -345,6 +346,7 @@ export class Auth {
     root.addEventListener('message', this.handlePostMessage, false);
 
     // pull creds from search bar if available
+    // TODO: Extract this
     this.processSearchParams();
 
     // don't validate the token if we're just going to redirect anyway.
@@ -367,7 +369,8 @@ export class Auth {
       );
       this.persistData(FIRST_TIME_LOGIN, c.initialCredentials.firstTimeLogin);
       this.setCurrentUser(c.initialCredentials.user);
-      return new $.Deferred().resolve(c.initialCredentials.user);
+
+      return Promise.resolve(c.initialCredentials.user);
     }
 
     // otherwise check with server if any existing tokens are found
@@ -571,25 +574,11 @@ export class Auth {
 
   // abstract publish method, only use if pubsub exists.
   // TODO: allow broadcast method to be configured
+  // TODO: Extract this
   broadcastEvent(msg, data) {
     if (root.PubSub && typeof root.PubSub.publish === 'function') {
       root.PubSub.publish(msg, data);
     }
-  }
-
-  // always resolve after 0 timeout to ensure that ajaxComplete callback
-  // has run before promise is resolved
-  resolvePromise(evMsg, dfd, data) {
-    var self = this,
-      finished = $.Deferred();
-
-    setTimeout(function() {
-      self.broadcastEvent(evMsg, data);
-      dfd.resolve(data);
-      finished.resolve();
-    }, 0);
-
-    return finished.promise();
   }
 
   rejectPromise(evMsg, dfd, data, reason) {
@@ -611,11 +600,9 @@ export class Auth {
   }
 
   // TODO: document
-  validateToken(options) {
-    const opts = options || {};
-
-    if (!opts.config) {
-      opts.config = this.getCurrentConfigName();
+  validateToken(options = {}) {
+    if (!options.config) {
+      options.config = this.getCurrentConfigName();
     }
 
     // if this check is already in progress, return existing promise
@@ -623,50 +610,37 @@ export class Auth {
       return this.configDfd;
     }
 
-    var dfd = $.Deferred();
-
     // no creds, reject promise without making API call
     if (!this.retrieveData(SAVED_CREDS_KEY)) {
       // clear any saved session data
       this.invalidateTokens();
 
       // reject promise, broadcast event
-      this.rejectPromise(
-        VALIDATION_ERROR,
-        dfd,
-        {},
-        'Cannot validate token; no token found.'
-      );
+      return Promise.reject('Cannot validate token; no token found.');
     } else {
-      var config = this.getConfig(opts.config),
-        url = this.getApiUrl() + config.tokenValidationPath;
+      const config = this.getConfig(options.config);
+      const url = this.getApiUrl() + config.tokenValidationPath;
 
-      // found saved creds, verify with API
-      $.ajax({
-        url: url,
-        context: this,
-
-        success: function(resp) {
-          var user = config.handleTokenValidationResponse(resp);
-
+      return fetch(url)
+        .then(response => {
+          const user = config.handleTokenValidationResponse(response);
           this.setCurrentUser(user);
 
           if (this.retrieveData(FIRST_TIME_LOGIN)) {
-            this.broadcastEvent(EMAIL_CONFIRMATION_SUCCESS, resp);
+            this.broadcastEvent(EMAIL_CONFIRMATION_SUCCESS, response);
             this.persistData(FIRST_TIME_LOGIN, false);
             this.firstTimeLogin = true;
           }
 
           if (this.retrieveData(MUST_RESET_PASSWORD)) {
-            this.broadcastEvent(PASSWORD_RESET_CONFIRM_SUCCESS, resp);
+            this.broadcastEvent(PASSWORD_RESET_CONFIRM_SUCCESS, response);
             this.persistData(MUST_RESET_PASSWORD, false);
             this.mustResetPassword = true;
           }
 
           this.resolvePromise(VALIDATION_SUCCESS, dfd, this.user);
-        },
-
-        error: function(resp) {
+        })
+        .catch(error => {
           // clear any saved session data
           this.invalidateTokens();
 
@@ -686,93 +660,74 @@ export class Auth {
             resp,
             'Cannot validate token; token rejected by server.'
           );
-        }
-      });
-    }
 
-    return dfd.promise();
+          return Promise.reject(error);
+        });
+    }
   }
 
   // TODO: document
-  emailSignUp(options) {
-    const opts = options || {};
+  emailSignUp(options = {}) {
+    var config = this.getConfig(options.config),
+      url = this.getApiUrl() + config.emailRegistrationPath;
 
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.emailRegistrationPath,
-      dfd = $.Deferred();
+    options.config_name = options.config;
+    delete options.config;
 
-    opts.config_name = opts.config;
-    delete opts.config;
+    options.confirm_success_url = config.confirmationSuccessUrl();
 
-    opts.confirm_success_url = config.confirmationSuccessUrl();
-
-    $.ajax({
-      url: url,
-      context: this,
+    return fetch(url, {
       method: 'POST',
-      data: opts,
+      body: options
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw response;
+        }
 
-      success: function(resp) {
-        this.resolvePromise(EMAIL_REGISTRATION_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
-        this.rejectPromise(
-          EMAIL_REGISTRATION_ERROR,
-          dfd,
-          resp,
-          'Failed to submit email registration.'
-        );
-      }
-    });
-
-    return dfd.promise();
+        return response.json().then(data => {
+          this.broadcastEvent(EMAIL_REGISTRATION_SUCCESS, data);
+          return data;
+        });
+      })
+      .catch(error => {
+        this.broadcastEvent(EMAIL_REGISTRATION_ERROR, error);
+        return Promise.reject(error);
+      });
   }
 
-  emailSignIn(opts) {
-    // normalize opts
-    if (!opts) {
-      opts = {};
-    }
-
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.emailSignInPath,
-      dfd = $.Deferred();
+  emailSignIn(options = {}) {
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.emailSignInPath;
 
     // don't send config name to API
-    delete opts.config;
+    delete options.config;
 
-    $.ajax({
-      url: url,
-      context: this,
+    return fetch(url, {
       method: 'POST',
-      data: opts,
-
-      success: function(resp) {
+      body: options
+    })
+      .then(response => {
         // return user attrs as directed by config
-        var user = config.handleLoginResponse(resp);
+        var user = config.handleLoginResponse(response);
 
         // save user data, preserve bindings to original user object
         this.setCurrentUser(user);
 
-        this.resolvePromise(EMAIL_SIGN_IN_SUCCESS, dfd, resp);
+        this.resolvePromise(EMAIL_SIGN_IN_SUCCESS, dfd, response);
         this.broadcastEvent(SIGN_IN_SUCCESS, user);
         this.broadcastEvent(VALIDATION_SUCCESS, this.user);
-      },
-
-      error: function(resp) {
+      })
+      .catch(error => {
         this.rejectPromise(
           EMAIL_SIGN_IN_ERROR,
           dfd,
-          resp,
+          error,
           'Invalid credentials.'
         );
 
         this.broadcastEvent(SIGN_IN_ERROR, resp);
-      }
-    });
-
-    return dfd.promise();
+      });
   }
 
   // ping auth window to see if user has completed authentication.
@@ -833,210 +788,145 @@ export class Auth {
     return oAuthUrl;
   }
 
-  oAuthSignIn(opts) {
-    // normalize opts
-    if (!opts) {
-      opts = {};
-    }
-
+  oAuthSignIn(opts = {}) {
     if (!opts.provider) {
-      throw 'jToker: provider param undefined for `oAuthSignIn` method.';
+      throw 'es-toker: provider param undefined for `oAuthSignIn` method.';
     }
 
-    var config = this.getConfig(opts.config),
-      providerPath = config.authProviderPaths[opts.provider],
-      oAuthUrl = this.buildOAuthUrl(opts.config, opts.params, providerPath);
+    const config = this.getConfig(opts.config);
+    const providerPath = config.authProviderPaths[opts.provider];
+    const oAuthUrl = this.buildOAuthUrl(opts.config, opts.params, providerPath);
 
     if (!providerPath) {
-      throw 'jToker: providerPath not found for provider: ' + opts.provider;
+      throw 'es-toker: providerPath not found for provider: ' + opts.provider;
     }
 
-    // save oAuth promise until response is received
-    this.oAuthDfd = $.Deferred();
-
-    // open link to provider auth screen
-    this.openAuthWindow(oAuthUrl);
-
-    return this.oAuthDfd.promise();
+    return this.openAuthWindow(oAuthUrl);
   }
 
-  signOut(opts) {
-    if (!opts) {
-      opts = {};
-    }
+  signOut(opts = {}) {
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.signOutPath;
 
-    var config = this.getConfig(opts.config),
-      signOutUrl = this.getApiUrl() + config.signOutPath,
-      dfd = $.Deferred();
-
-    $.ajax({
-      url: signOutUrl,
-      context: this,
-      method: 'DELETE',
-
-      success: function(resp) {
-        this.resolvePromise(SIGN_OUT_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
-        this.rejectPromise(SIGN_OUT_ERROR, dfd, resp, 'Failed to sign out.');
-      },
-
-      complete: function() {
-        this.invalidateTokens();
-      }
-    });
-
-    return dfd.promise();
+    return (
+      fetch(url, {
+        method: 'DELETE'
+      })
+        .then(response => response.json())
+        .then(data => {
+          this.resolvePromise(SIGN_OUT_SUCCESS, dfd, data);
+        })
+        .catch(error => {
+          this.rejectPromise(SIGN_OUT_ERROR, dfd, resp, 'Failed to sign out.');
+        })
+        // finally
+        .then(this.invalidateTokens)
+    );
   }
 
-  updateAccount(opts) {
-    if (!opts) {
-      opts = {};
-    }
-
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.accountUpdatePath,
-      dfd = $.Deferred();
+  updateAccount(opts = {}) {
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.accountUpdatePath;
 
     delete opts.config;
 
-    $.ajax({
-      url: url,
-      context: this,
+    return fetch(url, {
       method: 'PUT',
-      data: opts,
-
-      success: function(resp) {
-        var user = config.handleAccountUpdateResponse(resp);
+      body: opts
+    })
+      .then(response => response.json())
+      .then(data => {
+        const user = config.handleAccountUpdateResponse(data);
         this.setCurrentUser(user);
-        this.resolvePromise(ACCOUNT_UPDATE_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
+        this.resolvePromise(ACCOUNT_UPDATE_SUCCESS, dfd, data);
+      })
+      .catch(error => {
         this.rejectPromise(
           ACCOUNT_UPDATE_ERROR,
           dfd,
-          resp,
+          error,
           'Failed to update user account'
         );
-      }
-    });
-
-    return dfd.promise();
+      });
   }
 
-  destroyAccount(opts) {
-    if (!opts) {
-      opts = {};
-    }
+  destroyAccount(opts = {}) {
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.accountDeletePath;
 
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.accountDeletePath,
-      dfd = $.Deferred();
-
-    $.ajax({
-      url: url,
-      context: this,
-      method: 'DELETE',
-
-      success: function(resp) {
+    return fetch(url, {
+      method: 'DELETE'
+    })
+      .then(response => response.json())
+      .then(data => {
         this.invalidateTokens();
-        this.resolvePromise(DESTROY_ACCOUNT_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
-        this.rejectPromise(
-          DESTROY_ACCOUNT_ERROR,
-          dfd,
-          resp,
-          'Failed to destroy user account'
-        );
-      }
-    });
-
-    return dfd.promise();
+        this.resolvePromise(DESTROY_ACCOUNT_SUCCESS, dfd, data);
+      })
+      .catch(error => {
+        this.broadcastEvent(DESTROY_ACCOUNT_ERROR, error);
+        return Promise.reject('Failed to destroy user account', error);
+      });
   }
 
   // TODO: implement re-confirmable on devise_token_auth
   //resendConfirmation(email) {};
 
-  requestPasswordReset(opts) {
-    // normalize opts
-    if (!opts) {
-      opts = {};
-    }
-
+  requestPasswordReset(opts = {}) {
     if (opts.email === undefined) {
-      throw 'jToker: email param undefined for `requestPasswordReset` method.';
+      throw 'es-toker: email param undefined for `requestPasswordReset` method.';
     }
 
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.passwordResetPath,
-      dfd = $.Deferred();
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.passwordResetPath;
 
     opts.config_name = opts.config;
     delete opts.config;
 
     opts.redirect_url = config.passwordResetSuccessUrl();
 
-    $.ajax({
-      url: url,
-      context: this,
+    return fetch(url, {
       method: 'POST',
-      data: opts,
-
-      success: function(resp) {
-        this.resolvePromise(PASSWORD_RESET_REQUEST_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
+      body: opts
+    })
+      .then(response => response.json())
+      .then(data => {
+        this.resolvePromise(PASSWORD_RESET_REQUEST_SUCCESS, dfd, data);
+      })
+      .catch(error => {
         this.rejectPromise(
           PASSWORD_RESET_REQUEST_ERROR,
           dfd,
-          resp,
+          error,
           'Failed to submit email registration.'
         );
-      }
-    });
-
-    return dfd.promise();
+      });
   }
 
-  updatePassword(opts) {
-    if (!opts) {
-      opts = {};
-    }
-
-    var config = this.getConfig(opts.config),
-      url = this.getApiUrl() + config.passwordUpdatePath,
-      dfd = $.Deferred();
+  updatePassword(opts = {}) {
+    const config = this.getConfig(opts.config);
+    const url = this.getApiUrl() + config.passwordUpdatePath;
 
     delete opts.config;
 
-    $.ajax({
-      url: url,
-      context: this,
+    return fetch(url, {
       method: 'PUT',
-      data: opts,
-
-      success: function(resp) {
-        this.resolvePromise(PASSWORD_UPDATE_SUCCESS, dfd, resp);
-      },
-
-      error: function(resp) {
+      body: opts
+    })
+      .then(response => response.json())
+      .then(data => {
+        this.resolvePromise(PASSWORD_UPDATE_SUCCESS, dfd, data);
+      })
+      .catch(error => {
         this.rejectPromise(
           PASSWORD_UPDATE_ERROR,
           dfd,
-          resp,
+          error,
           'Failed to update password.'
         );
-      }
-    });
-
-    return dfd.promise();
+      });
   }
 
+  // TODO: replace with more reliable abstraction using popular storage lib?
   // abstract storing of session data
   persistData(key, val, config) {
     val = JSON.stringify(val);
@@ -1058,24 +948,17 @@ export class Auth {
   // abstract reading of session data
   retrieveData(key) {
     var val = null;
+    const storage = this.getConfig().storage;
 
-    switch (this.getConfig().storage) {
-      case 'localStorage':
-        val = root.localStorage.getItem(key);
-        break;
-
-      default:
-        val = Cookies.get(key);
-        break;
+    if (storage === 'localStorage') {
+      val = root.localStorage.getItem(key);
+    } else {
+      val = Cookies.get(key);
     }
 
-    // if value is a simple string, the parser will fail. in that case, simply
-    // unescape the quotes and return the string.
     try {
-      // return parsed json response
       return JSON.parse(val);
     } catch (err) {
-      // unescape quotes
       return unescapeQuotes(val);
     }
   }
@@ -1126,7 +1009,7 @@ export class Auth {
   getConfig(key) {
     // configure if not configured
     if (!this.configured) {
-      throw 'jToker: `configure` must be run before using this plugin.';
+      throw 'es-toker: `configure` must be run before using this plugin.';
     }
 
     // fall back to default unless config key is passed

@@ -1,10 +1,10 @@
 {
   "name": "j-toker",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "Simple, secure token authentication for jQuery.",
   "main": "dist/jquery.j-toker.js",
   "engines": {
-    "node": "8.1.4"
+    "node": "8.11.x"
   },
   "keywords": [
     "devise",
