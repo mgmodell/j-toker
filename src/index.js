@@ -2,42 +2,32 @@ import Cookies from 'js-cookie';
 import fetchIntercept from 'fetch-intercept';
 import qs from 'qs';
 
+import {
+  ACCOUNT_UPDATE_ERROR,
+  ACCOUNT_UPDATE_SUCCESS,
+  DESTROY_ACCOUNT_ERROR,
+  DESTROY_ACCOUNT_SUCCESS,
+  EMAIL_SIGN_IN_ERROR,
+  OAUTH_SIGN_IN_ERROR,
+  OAUTH_SIGN_IN_SUCCESS,
+  PASSWORD_UPDATE_ERROR,
+  PASSWORD_UPDATE_SUCCESS,
+  SIGN_IN_ERROR,
+  SIGN_IN_SUCCESS,
+  SIGN_OUT_ERROR,
+  SIGN_OUT_SUCCESS
+} from './constants/broadcast-message-types';
+import {
+  FIRST_TIME_LOGIN,
+  INITIAL_CONFIG_KEY,
+  MUST_RESET_PASSWORD,
+  SAVED_CONFIG_KEY,
+  SAVED_CREDS_KEY
+} from './constants/storage-keys';
+
 var root = window;
 const AuthInstance = new Auth();
-root.jTokerAuthInstance = AuthInstance;
-
-// cookie/localStorage value keys
-var INITIAL_CONFIG_KEY = 'default',
-  SAVED_CONFIG_KEY = 'currentConfigName',
-  SAVED_CREDS_KEY = 'authHeaders',
-  FIRST_TIME_LOGIN = 'firstTimeLogin',
-  MUST_RESET_PASSWORD = 'mustResetPassword';
-
-// broadcast message event name constants (use constants to avoid typos)
-var VALIDATION_SUCCESS = 'auth.validation.success',
-  VALIDATION_ERROR = 'auth.validation.error',
-  EMAIL_REGISTRATION_SUCCESS = 'auth.emailRegistration.success',
-  EMAIL_REGISTRATION_ERROR = 'auth.emailRegistration.error',
-  PASSWORD_RESET_REQUEST_SUCCESS = 'auth.passwordResetRequest.success',
-  PASSWORD_RESET_REQUEST_ERROR = 'auth.passwordResetRequest.error',
-  EMAIL_CONFIRMATION_SUCCESS = 'auth.emailConfirmation.success',
-  EMAIL_CONFIRMATION_ERROR = 'auth.emailConfirmation.error',
-  PASSWORD_RESET_CONFIRM_SUCCESS = 'auth.passwordResetConfirm.success',
-  PASSWORD_RESET_CONFIRM_ERROR = 'auth.passwordResetConfirm.error',
-  EMAIL_SIGN_IN_SUCCESS = 'auth.emailSignIn.success',
-  EMAIL_SIGN_IN_ERROR = 'auth.emailSignIn.error',
-  OAUTH_SIGN_IN_SUCCESS = 'auth.oAuthSignIn.success',
-  OAUTH_SIGN_IN_ERROR = 'auth.oAuthSignIn.error',
-  SIGN_IN_SUCCESS = 'auth.signIn.success',
-  SIGN_IN_ERROR = 'auth.signIn.error',
-  SIGN_OUT_SUCCESS = 'auth.signOut.success',
-  SIGN_OUT_ERROR = 'auth.signOut.error',
-  ACCOUNT_UPDATE_SUCCESS = 'auth.accountUpdate.success',
-  ACCOUNT_UPDATE_ERROR = 'auth.accountUpdate.error',
-  DESTROY_ACCOUNT_SUCCESS = 'auth.destroyAccount.success',
-  DESTROY_ACCOUNT_ERROR = 'auth.destroyAccount.error',
-  PASSWORD_UPDATE_SUCCESS = 'auth.passwordUpdate.success',
-  PASSWORD_UPDATE_ERROR = 'auth.passwordUpdate.error';
+root.esTokerAuthInstance = AuthInstance;
 
 // private util methods
 var getFirstObjectKey = function(obj) {
@@ -212,7 +202,10 @@ export class Auth {
     root.removeEventListener('message', this.handlePostMessage);
 
     // remove global ajax "interceptors"
-    this.unregisterFetchIntercept && this.unregisterFetchIntercept();
+    if (typeof this.unregisterFetchIntercept === 'function') {
+      this.unregisterFetchIntercept();
+      delete this.unregisterFetchIntercept;
+    }
   }
 
   invalidateTokens() {
@@ -345,7 +338,7 @@ export class Auth {
         // intercept requests to the API, append auth headers
         request: this.appendAuthHeaders,
         // update auth creds after each request to the API
-        response: this.updateAuthCredentials,
+        response: this.updateAuthCredentials
       });
     }
 
@@ -602,8 +595,7 @@ export class Auth {
   rejectPromise(evMsg, dfd, data, reason) {
     var self = this;
 
-    // jQuery has a strange way of returning error responses...
-    data = $.parseJSON((data && data.responseText) || '{}');
+    data = JSON.parse((data && data.responseText) || '{}');
 
     // always reject after 0 timeout to ensure that ajaxComplete callback
     // has run before promise is rejected
@@ -619,10 +611,8 @@ export class Auth {
   }
 
   // TODO: document
-  validateToken(opts) {
-    if (!opts) {
-      opts = {};
-    }
+  validateToken(options) {
+    const opts = options || {};
 
     if (!opts.config) {
       opts.config = this.getCurrentConfigName();

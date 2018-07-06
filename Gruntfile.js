@@ -122,33 +122,6 @@ module.exports = function (grunt) {
       }
     },
 
-    jshint: {
-      options: {
-        reporter: require('jshint-stylish')
-      },
-      gruntfile: {
-        options: {
-          jshintrc: '.jshintrc',
-          reporterOutput: ''
-        },
-        src: 'Gruntfile.js'
-      },
-      src: {
-        options: {
-          jshintrc: 'src/.jshintrc',
-          reporterOutput: ''
-        },
-        src: ['src/**/*.js']
-      },
-      test: {
-        options: {
-          jshintrc: 'test/.jshintrc',
-          reporterOutput: ''
-        },
-        src: ['test/**/*.js']
-      }
-    },
-
     sass: {
       dist: {
         files: [{
@@ -170,18 +143,6 @@ module.exports = function (grunt) {
     },
 
     watch: {
-      gruntfile: {
-        files: '<%= jshint.gruntfile.src %>',
-        tasks: ['jshint:gruntfile']
-      },
-      src: {
-        files: '<%= jshint.src.src %>',
-        tasks: ['jshint:src', 'qunit']
-      },
-      test: {
-        files: '<%= jshint.test.src %>',
-        tasks: ['jshint:test', 'qunit']
-      },
       copyDemo: {
         files: '<%= copy.demo.src %>',
         tasks: ['copy']
@@ -219,7 +180,6 @@ module.exports = function (grunt) {
   // Default task.
   grunt.registerTask('test', [
     'clean',
-    'jshint',
     'connect',
     'qunit',
     'concat',
