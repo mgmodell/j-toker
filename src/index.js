@@ -101,10 +101,10 @@ export class ESToker {
     }
 
     // set flag so we know when plugin has been configured.
-    this.configured = false;
+    this.initialized = false;
 
     // create promise for configuration + verification
-    this.configDfd = null;
+    this.tokenValidationPromise = null;
 
     // configs hash allows for multiple configurations
     this.configs = {};
@@ -137,8 +137,8 @@ export class ESToker {
 
     this.configs = {};
     this.defaultConfigKey = null;
-    this.configured = false;
-    this.configDfd = null;
+    this.initialized = false;
+    this.tokenValidationPromise = null;
     this.mustResetPassword = false;
     this.firstTimeLogin = false;
     this.oAuthDfd = null;
@@ -208,12 +208,12 @@ export class ESToker {
       this.reset();
     }
 
-    if (this.configured) {
-      return this.configDfd;
+    if (this.initialized) {
+      return this.tokenValidationPromise;
     }
 
     // set flag so configure isn't called again (unless reset)
-    this.configured = true;
+    this.initialized = true;
 
     // normalize opts into object object
     if (!opts) {
@@ -221,7 +221,7 @@ export class ESToker {
     }
 
     // normalize so opts is always an array of objects
-    if (!Array.isArray(opts.constructor)) {
+    if (!Array.isArray(opts)) {
       // single config will always be called 'default' unless set
       // by previous session
       this.defaultConfigKey = INITIAL_CONFIG_KEY;
@@ -254,9 +254,9 @@ export class ESToker {
     if (true) {
       this.unregisterFetchIntercept = fetchIntercept.register({
         // intercept requests to the API, append auth headers
-        request: this.appendAuthHeaders,
+        request: this.appendAuthHeaders.bind(this),
         // update auth creds after each request to the API
-        response: this.updateAuthCredentials,
+        response: this.updateAuthCredentials.bind(this),
       });
     }
 
@@ -293,10 +293,10 @@ export class ESToker {
     // otherwise check with server if any existing tokens are found
     else {
       // validate token if set
-      this.configDfd = this.validateToken({
+      this.tokenValidationPromise = this.validateToken({
         config: this.getCurrentConfigName(),
       });
-      return this.configDfd;
+      return this.tokenValidationPromise;
     }
   }
 
@@ -343,6 +343,7 @@ export class ESToker {
         user = this.setCurrentUser(ev.data);
 
       this.persistData(SAVED_CREDS_KEY, authHeaders);
+      // FIXME:
       this.authPromise.resolve(user);
       this.broadcastEvent(SIGN_IN_SUCCESS, user);
       this.broadcastEvent(VALIDATION_SUCCESS, user);
@@ -482,28 +483,10 @@ export class ESToker {
   // abstract publish method, only use if pubsub exists.
   // TODO: allow broadcast method to be configured
   // TODO: Extract this
-  broadcastEvent(msg, data) {
+  broadcastEvent(type, payload) {
     if (window.PubSub && typeof window.PubSub.publish === 'function') {
-      window.PubSub.publish(msg, data);
+      window.PubSub.publish('auth', { type, payload });
     }
-  }
-
-  rejectPromise(evMsg, dfd, data, reason) {
-    var self = this;
-
-    data = JSON.parse((data && data.responseText) || '{}');
-
-    // always reject after 0 timeout to ensure that ajaxComplete callback
-    // has run before promise is rejected
-    setTimeout(function() {
-      self.broadcastEvent(evMsg, data);
-      dfd.reject({
-        reason: reason,
-        data: data,
-      });
-    }, 0);
-
-    return dfd;
   }
 
   // TODO: document
@@ -513,8 +496,8 @@ export class ESToker {
     }
 
     // if this check is already in progress, return existing promise
-    if (this.configDfd) {
-      return this.configDfd;
+    if (this.tokenValidationPromise) {
+      return this.tokenValidationPromise;
     }
 
     // no creds, reject promise without making API call
@@ -529,23 +512,25 @@ export class ESToker {
       const url = this.getApiUrl() + config.tokenValidationPath;
 
       return fetch(url)
-        .then(response => {
-          const user = config.handleTokenValidationResponse(response);
-          this.setCurrentUser(user);
+        .then(config.handleTokenValidationResponse)
+        .then(user => {
+          const currentUser = this.setCurrentUser(user);
 
           if (this.retrieveData(FIRST_TIME_LOGIN)) {
-            this.broadcastEvent(EMAIL_CONFIRMATION_SUCCESS, response);
+            this.broadcastEvent(EMAIL_CONFIRMATION_SUCCESS, currentUser);
             this.persistData(FIRST_TIME_LOGIN, false);
             this.firstTimeLogin = true;
           }
 
           if (this.retrieveData(MUST_RESET_PASSWORD)) {
-            this.broadcastEvent(PASSWORD_RESET_CONFIRM_SUCCESS, response);
+            this.broadcastEvent(PASSWORD_RESET_CONFIRM_SUCCESS, currentUser);
             this.persistData(MUST_RESET_PASSWORD, false);
             this.mustResetPassword = true;
           }
 
-          this.resolvePromise(VALIDATION_SUCCESS, dfd, this.user);
+          this.broadcastEvent(VALIDATION_SUCCESS, currentUser);
+
+          return currentUser;
         })
         .catch(error => {
           // clear any saved session data
@@ -561,12 +546,10 @@ export class ESToker {
             this.persistData(MUST_RESET_PASSWORD, false);
           }
 
-          this.rejectPromise(
-            VALIDATION_ERROR,
-            dfd,
-            resp,
-            'Cannot validate token; token rejected by server.',
-          );
+          this.broadcastEvent(VALIDATION_ERROR, {
+            error,
+            message: 'Cannot validate token; token rejected by server.',
+          });
 
           return Promise.reject(error);
         });
@@ -621,24 +604,22 @@ export class ESToker {
         // save user data, preserve bindings to original user object
         this.setCurrentUser(user);
 
-        this.resolvePromise(EMAIL_SIGN_IN_SUCCESS, dfd, response);
+        this.broadcastEvent(EMAIL_SIGN_IN_SUCCESS, response);
         this.broadcastEvent(SIGN_IN_SUCCESS, user);
         this.broadcastEvent(VALIDATION_SUCCESS, this.user);
       })
       .catch(error => {
-        this.rejectPromise(
-          EMAIL_SIGN_IN_ERROR,
-          dfd,
+        this.broadcastEvent(EMAIL_SIGN_IN_ERROR, {
           error,
-          'Invalid credentials.',
-        );
+          message: 'Invalid credentials.',
+        });
 
         this.broadcastEvent(SIGN_IN_ERROR, resp);
       });
   }
 
   openAuthWindow(url) {
-    return new Promise((resolve, reject) => {
+    const authRequestPromise = new Promise((resolve, reject) => {
       this.authPromise = { resolve, reject };
 
       function listenForCredentials(popup) {
@@ -667,6 +648,8 @@ export class ESToker {
         listenForCredentials.call(this, popup);
       }
     });
+
+    return authRequestPromise;
   }
 
   buildOAuthUrl(configName, params, providerPath) {
@@ -704,6 +687,7 @@ export class ESToker {
       throw 'es-toker: providerPath not found for provider: ' + opts.provider;
     }
 
+    // TODO: refactor!
     return this.openAuthWindow(oAuthUrl);
   }
 
@@ -717,10 +701,11 @@ export class ESToker {
       })
         .then(response => response.json())
         .then(data => {
-          this.resolvePromise(SIGN_OUT_SUCCESS, dfd, data);
+          this.broadcastEvent(SIGN_OUT_SUCCESS, data);
+          return data;
         })
         .catch(error => {
-          this.rejectPromise(SIGN_OUT_ERROR, dfd, resp, 'Failed to sign out.');
+          this.broadcastEvent(SIGN_OUT_ERROR, resp, 'Failed to sign out.');
         })
         // finally
         .then(this.invalidateTokens)
@@ -741,15 +726,13 @@ export class ESToker {
       .then(data => {
         const user = config.handleAccountUpdateResponse(data);
         this.setCurrentUser(user);
-        this.resolvePromise(ACCOUNT_UPDATE_SUCCESS, dfd, data);
+        this.broadcastEvent(ACCOUNT_UPDATE_SUCCESS, data);
       })
       .catch(error => {
-        this.rejectPromise(
-          ACCOUNT_UPDATE_ERROR,
-          dfd,
+        this.broadcastEvent(ACCOUNT_UPDATE_ERROR, {
           error,
-          'Failed to update user account',
-        );
+          message: 'Failed to update user account',
+        });
       });
   }
 
@@ -763,7 +746,7 @@ export class ESToker {
       .then(response => response.json())
       .then(data => {
         this.invalidateTokens();
-        this.resolvePromise(DESTROY_ACCOUNT_SUCCESS, dfd, data);
+        this.broadcastEvent(DESTROY_ACCOUNT_SUCCESS, data);
       })
       .catch(error => {
         this.broadcastEvent(DESTROY_ACCOUNT_ERROR, error);
@@ -793,15 +776,13 @@ export class ESToker {
     })
       .then(response => response.json())
       .then(data => {
-        this.resolvePromise(PASSWORD_RESET_REQUEST_SUCCESS, dfd, data);
+        this.broadcastEvent(PASSWORD_RESET_REQUEST_SUCCESS, data);
       })
       .catch(error => {
-        this.rejectPromise(
-          PASSWORD_RESET_REQUEST_ERROR,
-          dfd,
+        this.broadcastEvent(PASSWORD_RESET_REQUEST_ERROR, {
           error,
-          'Failed to submit email registration.',
-        );
+          message: 'Failed to submit email registration.',
+        });
       });
   }
 
@@ -817,15 +798,13 @@ export class ESToker {
     })
       .then(response => response.json())
       .then(data => {
-        this.resolvePromise(PASSWORD_UPDATE_SUCCESS, dfd, data);
+        this.broadcastEvent(PASSWORD_UPDATE_SUCCESS, data);
       })
       .catch(error => {
-        this.rejectPromise(
-          PASSWORD_UPDATE_ERROR,
-          dfd,
+        this.broadcastEvent(PASSWORD_UPDATE_ERROR, {
           error,
-          'Failed to update password.',
-        );
+          message: 'Failed to update password.',
+        });
       });
   }
 
@@ -834,6 +813,7 @@ export class ESToker {
   persistData(key, val, config) {
     val = JSON.stringify(val);
 
+    // TODO: refactor `this.getConfig(config)`???
     switch (this.getConfig(config).storage) {
       case 'localStorage':
         window.localStorage.setItem(key, val);
@@ -911,7 +891,7 @@ export class ESToker {
   // 2. default config
   getConfig(key) {
     // configure if not configured
-    if (!this.configured) {
+    if (!this.initialized) {
       throw 'es-toker: `configure` must be run before using this plugin.';
     }
 

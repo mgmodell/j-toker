@@ -5,4 +5,7 @@ describe('es-toker package', () => {
     expect(toker instanceof ESToker).toBe(true);
     expect(new ESToker()).toEqual(toker);
   });
+
+
+  it(oAuthSignIn)
 });

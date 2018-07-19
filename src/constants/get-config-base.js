@@ -49,9 +49,7 @@ export default () => ({
     return resp.data;
   },
 
-  handleTokenValidationResponse: function(resp) {
-    return resp.data;
-  },
+  handleTokenValidationResponse: r => r.json(),
 
   authProviderPaths: {
     github: '/auth/github',
