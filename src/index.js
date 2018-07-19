@@ -93,7 +93,7 @@ function isIE() {
 
 let instance = null;
 
-class ESToker {
+export class ESToker {
   constructor() {
     // Ensure singleton
     if (!instance) {
