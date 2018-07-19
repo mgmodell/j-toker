@@ -1,6 +1,6 @@
 {
   "name": "es-toker",
-  "version": "0.0.0",
+  "version": "0.0.0-beta.1",
   "description": "Simple, secure token authentication for ecmascript.",
   "main": "dist/index.js",
   "engines": {
@@ -30,13 +30,13 @@
       "url": "https://github.com/RusinovAnton"
     }
   ],
-  "repository": "lynndylanhurley/j-toker",
-  "bugs": "https://github.com/lynndylanhurley/j-toker/issues",
+  "repository": "RusinovAnton/es-toker",
+  "bugs": "https://github.com/RusinovAnton/es-toker/issues",
   "license": "WTFPL",
   "scripts": {
-    "start": "webpack-dev-server --mode development --open",
+    "start": "webpack-dev-server --mode development --open-page 'demo/'",
     "build": "npx webpack --mode production",
-    "prepublish": "npm run build",
+    "prepublish": "npm run test && npm run build",
     "test": "npx jest"
   },
   "dependencies": {
@@ -50,6 +50,7 @@
   "devDependencies": {
     "babel-core": "^6.26.3",
     "babel-loader": "^7.1.5",
+    "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "babel-preset-env": "^1.7.0",
     "babel-preset-react": "^6.24.1",
@@ -58,16 +59,20 @@
     "codeclimate-test-reporter": "^0.5.0",
     "compression": "^1.4.3",
     "config": "^1.12.0",
+    "deep-equal": "^1.0.1",
+    "dotenv-webpack": "^1.5.7",
     "eslint-config-airbnb": "^17.0.0",
     "html-webpack-plugin": "^3.2.0",
+    "j-toker": "0.0.10-beta3",
     "jest": "^23.3.0",
+    "jquery": "^3.3.1",
     "js-yaml": "^3.2.7",
     "lodash": "^3.5.0",
     "qunitjs": "^2.4.0",
-    "react": "^0.12.2",
+    "react": "^16.4.1",
     "react-dom": "^16.4.1",
     "request": "^2.53.0",
-    "sinon": "^1.14.1",
+    "sinon": "^1.17.7",
     "sinon-qunit": "~2.0.0",
     "webpack": "^4.15.1",
     "webpack-cli": "^3.0.8",

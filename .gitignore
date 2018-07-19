@@ -6,3 +6,10 @@ npm-debug.log
 reports
 tags
 tmp
+
+
+.env
+.env.local
+.env.dev
+.env.prod
+.DS_Store
