@@ -513,6 +513,7 @@ export class Auth {
     return obj;
   }
 
+  // TODO: prune pubsub from peerDependencies, provide more flexible way to subscribe to lib's events
   // abstract publish method, only use if pubsub exists.
   // TODO: allow broadcast method to be configured
   // TODO: Extract this
