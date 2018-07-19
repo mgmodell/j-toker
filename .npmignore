@@ -1,0 +1,12 @@
+test/
+demo/
+config/
+.editorconfig
+.eslintrc
+.jshintrc
+.travis.yml
+contributing.md
+Gruntfile.js
+Procfile
+readme.md
+yarn.lock
