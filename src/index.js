@@ -2,52 +2,60 @@ import Cookies from 'js-cookie';
 import fetchIntercept from 'fetch-intercept';
 import qs from 'qs';
 
+import getConfigBase from './constants/get-config-base';
 import {
   ACCOUNT_UPDATE_ERROR,
   ACCOUNT_UPDATE_SUCCESS,
   DESTROY_ACCOUNT_ERROR,
   DESTROY_ACCOUNT_SUCCESS,
+  EMAIL_CONFIRMATION_ERROR,
+  EMAIL_CONFIRMATION_SUCCESS,
+  EMAIL_REGISTRATION_ERROR,
+  EMAIL_REGISTRATION_SUCCESS,
   EMAIL_SIGN_IN_ERROR,
+  EMAIL_SIGN_IN_SUCCESS,
   OAUTH_SIGN_IN_ERROR,
   OAUTH_SIGN_IN_SUCCESS,
+  PASSWORD_RESET_CONFIRM_ERROR,
+  PASSWORD_RESET_CONFIRM_SUCCESS,
+  PASSWORD_RESET_REQUEST_ERROR,
+  PASSWORD_RESET_REQUEST_SUCCESS,
   PASSWORD_UPDATE_ERROR,
   PASSWORD_UPDATE_SUCCESS,
   SIGN_IN_ERROR,
   SIGN_IN_SUCCESS,
   SIGN_OUT_ERROR,
-  SIGN_OUT_SUCCESS
+  SIGN_OUT_SUCCESS,
+  VALIDATION_ERROR,
+  VALIDATION_SUCCESS,
 } from './constants/broadcast-message-types';
 import {
   FIRST_TIME_LOGIN,
   INITIAL_CONFIG_KEY,
   MUST_RESET_PASSWORD,
   SAVED_CONFIG_KEY,
-  SAVED_CREDS_KEY
+  SAVED_CREDS_KEY,
 } from './constants/storage-keys';
 
-var root = window;
-const AuthInstance = new Auth();
-root.esTokerAuthInstance = AuthInstance;
-
 // private util methods
-var getFirstObjectKey = function(obj) {
+const getFirstObjectKey = function(obj) {
   for (var key in obj) {
     return key;
   }
 };
 
-var unescapeQuotes = function(val) {
+const unescapeQuotes = function(val) {
   return val && val.replace(/("|')/g, '');
 };
 
-var isApiRequest = function(url) {
+const isApiRequest = function(url) {
   return url.match(AuthInstance.getApiUrl());
 };
 
 // simple string templating. stolen from:
 // http://stackoverflow.com/questions/14879866/javascript-templating-function-replace-string-and-dont-take-care-of-whitespace
-var tmpl = function(str, obj) {
-  var replacer = function(wholeMatch, key) {
+const tmpl = function(str, obj) {
+  const replacer = function(wholeMatch, key) {
       return obj[key] === undefined ? wholeMatch : obj[key];
     },
     regexp = new RegExp('{{\\s*([a-z0-9-_]+)\\s*}}', 'ig');
@@ -63,7 +71,7 @@ var tmpl = function(str, obj) {
 // check if IE < 10
 function isOldIE() {
   var oldIE = false,
-    ua = root.navigator.userAgent.toLowerCase();
+    ua = window.navigator.userAgent.toLowerCase();
 
   if (ua && ua.indexOf('msie') !== -1) {
     var version = parseInt(ua.split('msie')[1]);
@@ -78,13 +86,20 @@ function isOldIE() {
 // check if using IE
 function isIE() {
   var ieLTE10 = isOldIE(),
-    ie11 = !!root.navigator.userAgent.match(/Trident.*rv\:11\./);
+    ie11 = !!window.navigator.userAgent.match(/Trident.*rv\:11\./);
 
   return ieLTE10 || ie11;
 }
 
+let instance = null;
+
 export class Auth {
   constructor() {
+    // Ensure singleton
+    if (!instance) {
+      instance = this;
+    }
+
     // set flag so we know when plugin has been configured.
     this.configured = false;
 
@@ -106,72 +121,13 @@ export class Auth {
     // save reference to user
     this.user = {};
 
-    // oAuth promise is kept while visiting provider
-    this.oAuthDfd = null;
-
     // timer is used to poll external auth window while authenticating via OAuth
     this.oAuthTimer = null;
 
     // base config from which other configs are extended
-    this.configBase = {
-      apiUrl: '/api',
-      signOutPath: '/auth/sign_out',
-      emailSignInPath: '/auth/sign_in',
-      emailRegistrationPath: '/auth',
-      accountUpdatePath: '/auth',
-      accountDeletePath: '/auth',
-      passwordResetPath: '/auth/password',
-      passwordUpdatePath: '/auth/password',
-      tokenValidationPath: '/auth/validate_token',
-      proxyIf: function() {
-        return false;
-      },
-      proxyUrl: '/proxy',
-      forceHardRedirect: false,
-      storage: 'cookies',
-      cookieExpiry: 14,
-      cookiePath: '/',
-      initialCredentials: null,
+    this.configBase = getConfigBase();
 
-      passwordResetSuccessUrl: function() {
-        return root.location.href;
-      },
-
-      confirmationSuccessUrl: function() {
-        return root.location.href;
-      },
-
-      tokenFormat: {
-        'access-token': '{{ access-token }}',
-        'token-type': 'Bearer',
-        client: '{{ client }}',
-        expiry: '{{ expiry }}',
-        uid: '{{ uid }}'
-      },
-
-      parseExpiry: function(headers) {
-        // convert from ruby time (seconds) to js time (millis)
-        return parseInt(headers['expiry'], 10) * 1000 || null;
-      },
-
-      handleLoginResponse: function(resp) {
-        return resp.data;
-      },
-
-      handleAccountUpdateResponse: function(resp) {
-        return resp.data;
-      },
-
-      handleTokenValidationResponse: function(resp) {
-        return resp.data;
-      },
-
-      authProviderPaths: {
-        github: '/auth/github',
-        facebook: '/auth/facebook',
-        google: '/auth/google_oauth2'
-      }
-    };
+    return instance;
   }
 
   // mostly for testing. reset all config values
@@ -199,7 +155,7 @@ export class Auth {
     }
 
     // remove event listeners
-    root.removeEventListener('message', this.handlePostMessage);
+    window.removeEventListener('message', this.handlePostMessage);
 
     // remove global ajax "interceptors"
     if (typeof this.unregisterFetchIntercept === 'function') {
@@ -224,14 +180,10 @@ export class Auth {
     var errors = [],
       warnings = [];
 
-    if (!$) {
-      throw 'es-toker: jQuery not found. This module depends on jQuery.';
-    }
-
-    if (!root.localStorage && !Cookies) {
+    if (!window.localStorage && !Cookies) {
       errors.push(
         'This browser does not support localStorage. You must install ' +
-          'jquery-cookie to use es-toker with this browser.'
+          'jquery-cookie to use es-toker with this browser.',
       );
     }
 
@@ -239,7 +191,7 @@ export class Auth {
       errors.push('Dependency not met: jquery-qs.parse.');
     }
 
-    if (!root.PubSub) {
+    if (!window.PubSub) {
       warnings.push('PubSub not found. No auth events will be broadcast.');
     }
 
@@ -263,8 +215,8 @@ export class Auth {
       key = sessionKeys[key];
 
       // kill all local storage keys
-      if (root.localStorage) {
-        root.localStorage.removeItem(key);
+      if (window.localStorage) {
+        window.localStorage.removeItem(key);
       }
 
       if (Cookies) {
@@ -325,7 +277,7 @@ export class Auth {
       // save config to `configs` hash
       this.configs[configName] = {
         ...this.configBase,
-        ...opts[i][configName]
+        ...opts[i][configName],
       };
     }
 
@@ -339,11 +291,11 @@ export class Auth {
         // intercept requests to the API, append auth headers
         request: this.appendAuthHeaders,
         // update auth creds after each request to the API
-        response: this.updateAuthCredentials
+        response: this.updateAuthCredentials,
       });
     }
 
-    root.addEventListener('message', this.handlePostMessage, false);
+    window.addEventListener('message', this.handlePostMessage, false);
 
     // pull creds from search bar if available
     // TODO: Extract this
@@ -365,7 +317,7 @@ export class Auth {
       this.persistData(SAVED_CREDS_KEY, c.initialCredentials.headers);
       this.persistData(
         MUST_RESET_PASSWORD,
-        c.initialCredentials.mustResetPassword
+        c.initialCredentials.mustResetPassword,
       );
       this.persistData(FIRST_TIME_LOGIN, c.initialCredentials.firstTimeLogin);
       this.setCurrentUser(c.initialCredentials.user);
@@ -377,7 +329,7 @@ export class Auth {
     else {
       // validate token if set
       this.configDfd = this.validateToken({
-        config: this.getCurrentConfigName()
+        config: this.getCurrentConfigName(),
       });
       return this.configDfd;
     }
@@ -415,38 +367,27 @@ export class Auth {
     return this.user;
   }
 
-  handlePostMessage(ev) {
+  handlePostMessage = ev => {
     var stopListening = false;
 
     if (ev.data.message === 'deliverCredentials') {
       delete ev.data.message;
 
-      var initialHeaders = AuthInstance.normalizeTokenKeys(ev.data),
-        authHeaders = AuthInstance.buildAuthHeaders(initialHeaders),
-        user = AuthInstance.setCurrentUser(ev.data);
+      var initialHeaders = this.normalizeTokenKeys(ev.data),
+        authHeaders = this.buildAuthHeaders(initialHeaders),
+        user = this.setCurrentUser(ev.data);
 
-      AuthInstance.persistData(SAVED_CREDS_KEY, authHeaders);
-      AuthInstance.resolvePromise(
-        OAUTH_SIGN_IN_SUCCESS,
-        AuthInstance.oAuthDfd,
-        user
-      );
-      AuthInstance.broadcastEvent(SIGN_IN_SUCCESS, user);
-      AuthInstance.broadcastEvent(VALIDATION_SUCCESS, user);
+      this.persistData(SAVED_CREDS_KEY, authHeaders);
+      this.authPromise.resolve(user);
+      this.broadcastEvent(SIGN_IN_SUCCESS, user);
+      this.broadcastEvent(VALIDATION_SUCCESS, user);
 
       stopListening = true;
     }
 
     if (ev.data.message === 'authFailure') {
-      AuthInstance.rejectPromise(
-        OAUTH_SIGN_IN_ERROR,
-        AuthInstance.oAuthDfd,
-        ev.data,
-        'OAuth authentication failed.'
-      );
-
-      AuthInstance.broadcastEvent(SIGN_IN_ERROR, ev.data);
-
+      this.authPromise.reject(ev.data, 'OAuth authentication failed.');
+      this.broadcastEvent(SIGN_IN_ERROR, ev.data);
       stopListening = true;
     }
 
@@ -454,7 +395,7 @@ export class Auth {
       clearTimeout(AuthInstance.oAuthTimer);
       AuthInstance.oAuthTimer = null;
     }
-  }
+  };
 
   // compensate for poor naming decisions made early on
   // TODO: fix API so this isn't necessary
@@ -518,7 +459,7 @@ export class Auth {
         'expiry',
         'uid',
         'reset_password',
-        'account_confirmation_success'
+        'account_confirmation_success',
       ]);
 
       this.willRedirect = true;
@@ -538,7 +479,7 @@ export class Auth {
     // strip all values from both actual and anchor search params
     var newSearch = qs.stringify(this.stripKeys(this.getSearchQs(), keys)),
       newAnchorQs = qs.stringify(this.stripKeys(this.getAnchorQs(), keys)),
-      newAnchor = root.location.hash.split('?')[0];
+      newAnchor = window.location.hash.split('?')[0];
 
     if (newSearch) {
       newSearch = '?' + newSearch;
@@ -554,10 +495,10 @@ export class Auth {
 
     // reconstruct location with stripped auth keys
     var newLocation =
-      root.location.protocol +
+      window.location.protocol +
       '//' +
-      root.location.host +
-      root.location.pathname +
+      window.location.host +
+      window.location.pathname +
       newSearch +
       newAnchor;
 
@@ -576,8 +517,8 @@ export class Auth {
   // TODO: allow broadcast method to be configured
   // TODO: Extract this
   broadcastEvent(msg, data) {
-    if (root.PubSub && typeof root.PubSub.publish === 'function') {
-      root.PubSub.publish(msg, data);
+    if (window.PubSub && typeof window.PubSub.publish === 'function') {
+      window.PubSub.publish(msg, data);
     }
   }
 
@@ -592,7 +533,7 @@ export class Auth {
       self.broadcastEvent(evMsg, data);
       dfd.reject({
         reason: reason,
-        data: data
+        data: data,
       });
     }, 0);
 
@@ -658,7 +599,7 @@ export class Auth {
             VALIDATION_ERROR,
             dfd,
             resp,
-            'Cannot validate token; token rejected by server.'
+            'Cannot validate token; token rejected by server.',
           );
 
           return Promise.reject(error);
@@ -678,7 +619,7 @@ export class Auth {
 
     return fetch(url, {
       method: 'POST',
-      body: options
+      body: options,
     })
       .then(response => {
         if (!response.ok) {
@@ -705,7 +646,7 @@ export class Auth {
 
     return fetch(url, {
       method: 'POST',
-      body: options
+      body: options,
     })
       .then(response => {
         // return user attrs as directed by config
@@ -723,47 +664,43 @@ export class Auth {
           EMAIL_SIGN_IN_ERROR,
           dfd,
           error,
-          'Invalid credentials.'
+          'Invalid credentials.',
         );
 
         this.broadcastEvent(SIGN_IN_ERROR, resp);
       });
   }
 
-  // ping auth window to see if user has completed authentication.
-  // this method will be recursively called until:
-  // 1. user completes authentication
-  // 2. user fails authentication
-  // 3. auth window is closed
-  listenForCredentials(popup) {
-    var self = this;
-    if (popup.closed) {
-      self.rejectPromise(
-        OAUTH_SIGN_IN_ERROR,
-        self.oAuthDfd,
-        null,
-        'OAuth window was closed bofore registration was completed.'
-      );
-    } else {
-      popup.postMessage('requestCredentials', '*');
-      self.oAuthTimer = setTimeout(function() {
-        self.listenForCredentials(popup);
-      }, 500);
-    }
-  }
-
   openAuthWindow(url) {
-    if (this.getConfig().forceHardRedirect || isIE()) {
-      // redirect to external auth provider. credentials should be
-      // provided in location search hash upon return
-      this.setLocation(url);
-    } else {
-      // open popup to external auth provider
-      var popup = this.createPopup(url);
+    return new Promise((resolve, reject) => {
+      this.authPromise = { resolve, reject };
 
-      // listen for postMessage response
-      this.listenForCredentials(popup);
-    }
+      function listenForCredentials(popup) {
+        // listen for postMessage response
+        if (popup.closed) {
+          return reject(
+            OAUTH_SIGN_IN_ERROR,
+            'OAuth window was closed before registration was completed.',
+          );
+        } else {
+          popup.postMessage('requestCredentials', '*');
+          this.oAuthTimer = setTimeout(
+            listenForCredentials.bind(this, popup),
+            500,
+          );
+        }
+      }
+
+      if (this.getConfig().forceHardRedirect || isIE()) {
+        // redirect to external auth provider. credentials should be
+        // provided in location search hash upon return
+        this.setLocation(url);
+      } else {
+        // open popup to external auth provider
+        const popup = this.createPopup(url);
+        listenForCredentials.call(this, popup);
+      }
+    });
   }
 
   buildOAuthUrl(configName, params, providerPath) {
@@ -771,7 +708,7 @@ export class Auth {
       this.getConfig().apiUrl +
       providerPath +
       '?auth_origin_url=' +
-      encodeURIComponent(root.location.href) +
+      encodeURIComponent(window.location.href) +
       '&config_name=' +
       encodeURIComponent(configName || this.getCurrentConfigName()) +
       '&omniauth_window_type=newWindow';
@@ -810,7 +747,7 @@ export class Auth {
 
     return (
       fetch(url, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
         .then(response => response.json())
         .then(data => {
@@ -832,7 +769,7 @@ export class Auth {
 
     return fetch(url, {
       method: 'PUT',
-      body: opts
+      body: opts,
     })
       .then(response => response.json())
       .then(data => {
@@ -845,7 +782,7 @@ export class Auth {
           ACCOUNT_UPDATE_ERROR,
           dfd,
           error,
-          'Failed to update user account'
+          'Failed to update user account',
         );
       });
   }
@@ -855,7 +792,7 @@ export class Auth {
     const url = this.getApiUrl() + config.accountDeletePath;
 
     return fetch(url, {
-      method: 'DELETE'
+      method: 'DELETE',
     })
       .then(response => response.json())
       .then(data => {
@@ -886,7 +823,7 @@ export class Auth {
 
     return fetch(url, {
       method: 'POST',
-      body: opts
+      body: opts,
     })
       .then(response => response.json())
       .then(data => {
@@ -897,7 +834,7 @@ export class Auth {
           PASSWORD_RESET_REQUEST_ERROR,
           dfd,
           error,
-          'Failed to submit email registration.'
+          'Failed to submit email registration.',
         );
       });
   }
@@ -910,7 +847,7 @@ export class Auth {
 
     return fetch(url, {
       method: 'PUT',
-      body: opts
+      body: opts,
     })
       .then(response => response.json())
       .then(data => {
@@ -921,7 +858,7 @@ export class Auth {
           PASSWORD_UPDATE_ERROR,
           dfd,
           error,
-          'Failed to update password.'
+          'Failed to update password.',
         );
       });
   }
@@ -933,13 +870,13 @@ export class Auth {
 
     switch (this.getConfig(config).storage) {
       case 'localStorage':
-        root.localStorage.setItem(key, val);
+        window.localStorage.setItem(key, val);
         break;
 
       default:
         Cookies.set(key, val, {
           expires: this.getConfig(config).cookieExpiry,
-          path: this.getConfig(config).cookiePath
+          path: this.getConfig(config).cookiePath,
         });
         break;
     }
@@ -951,7 +888,7 @@ export class Auth {
     const storage = this.getConfig().storage;
 
     if (storage === 'localStorage') {
-      val = root.localStorage.getItem(key);
+      val = window.localStorage.getItem(key);
     } else {
       val = Cookies.get(key);
     }
@@ -978,8 +915,8 @@ export class Auth {
       configName = Cookies.get(SAVED_CONFIG_KEY);
     }
 
-    if (root.localStorage && !configName) {
-      configName = root.localStorage.getItem(SAVED_CONFIG_KEY);
+    if (window.localStorage && !configName) {
+      configName = window.localStorage.getItem(SAVED_CONFIG_KEY);
     }
 
     configName = configName || this.defaultConfigKey || INITIAL_CONFIG_KEY;
@@ -992,12 +929,12 @@ export class Auth {
     switch (this.getConfig().storage) {
       case 'cookies':
         Cookies.remove(key, {
-          path: this.getConfig().cookiePath
+          path: this.getConfig().cookiePath,
         });
         break;
 
       default:
-        root.localStorage.removeItem(key);
+        window.localStorage.removeItem(key);
         break;
     }
   }
@@ -1018,32 +955,33 @@ export class Auth {
     return this.configs[key];
   }
 
-  // FIXME: rewrite for fetch
   // send auth credentials with all requests to the API
-  appendAuthHeaders(xhr, settings) {
+  appendAuthHeaders = (input, init = {}) => {
     // fetch current auth headers from storage
-    var currentHeaders = AuthInstance.retrieveData(SAVED_CREDS_KEY);
+    const currentHeaders = this.retrieveData(SAVED_CREDS_KEY);
 
     // check config apiUrl matches the current request url
-    if (isApiRequest(settings.url) && currentHeaders) {
-      // bust IE cache
-      xhr.setRequestHeader(
-        'If-Modified-Since',
-        'Mon, 26 Jul 1997 05:00:00 GMT'
-      );
+    if (isApiRequest(input) && currentHeaders) {
+      init.headers = init.headers || new Headers();
 
+      // bust IE cache
+      init.headers.set('If-Modified-Since', 'Mon, 26 Jul 1997 05:00:00 GMT');
+
+      const tokenFormat = this.getConfig().tokenFormat;
       // set header for each key in `tokenFormat` config
-      for (var key in AuthInstance.getConfig().tokenFormat) {
-        xhr.setRequestHeader(key, currentHeaders[key]);
+      for (var key in tokenFormat) {
+        init.headers.set(key, currentHeaders[key]);
       }
     }
-  }
+
+    return [input, init];
+  };
 
   // FIXME: rewrite for fetch
   // update auth credentials after request is made to the API
-  updateAuthCredentials(ev, xhr, settings) {
+  updateAuthCredentials(response) {
     // check config apiUrl matches the current response url
-    if (isApiRequest(settings.url)) {
+    if (isApiRequest(response.url)) {
       // set header for each key in `tokenFormat` config
       var newHeaders = {};
 
@@ -1053,7 +991,7 @@ export class Auth {
 
       // set header key + val for each key in `tokenFormat` config
       for (var key in AuthInstance.getConfig().tokenFormat) {
-        newHeaders[key] = xhr.getResponseHeader(key);
+        newHeaders[key] = response.headers.get(key);
 
         if (newHeaders[key]) {
           blankHeaders = false;
@@ -1062,23 +1000,25 @@ export class Auth {
 
       // persist headers for next request
       if (!blankHeaders) {
-        AuthInstance.persistData(SAVED_CREDS_KEY, newHeaders);
+        this.persistData(SAVED_CREDS_KEY, newHeaders);
       }
+
+      return response;
     }
   }
 
   // stub for mock overrides
   getRawSearch() {
-    return root.location.search;
+    return window.location.search;
   }
 
   // stub for mock overrides
   getRawAnchor() {
-    return root.location.hash;
+    return window.location.hash;
   }
 
   setRawAnchor(a) {
-    root.location.hash = a;
+    window.location.hash = a;
   }
 
   getAnchorSearch() {
@@ -1088,7 +1028,7 @@ export class Auth {
 
   // stub for mock overrides
   setRawSearch(s) {
-    root.location.search = s;
+    window.location.search = s;
   }
 
   // stub for mock overrides
@@ -1104,12 +1044,12 @@ export class Auth {
 
   // stub for mock overrides
   setLocation(url) {
-    root.location.replace(url);
+    window.location.replace(url);
   }
 
   // stub for mock overrides
   createPopup(url) {
-    return root.open(url);
+    return window.open(url);
   }
 
   getSearchQs() {
@@ -1131,5 +1071,8 @@ export class Auth {
     return { ...this.getSearchQs(), ...this.getAnchorQs() };
   }
 }
+
+const AuthInstance = new Auth();
+window.esTokerAuthInstance = AuthInstance;
 
 export default AuthInstance;
