@@ -1,6 +1,6 @@
 {
   "name": "es-toker",
-  "version": "0.0.0",
+  "version": "0.0.0-beta.1",
   "description": "Simple, secure token authentication for ecmascript.",
   "main": "dist/index.js",
   "engines": {
@@ -30,13 +30,13 @@
       "url": "https://github.com/RusinovAnton"
     }
   ],
-  "repository": "lynndylanhurley/j-toker",
-  "bugs": "https://github.com/lynndylanhurley/j-toker/issues",
+  "repository": "RusinovAnton/es-toker",
+  "bugs": "https://github.com/RusinovAnton/es-toker/issues",
   "license": "WTFPL",
   "scripts": {
     "start": "webpack-dev-server --mode development --open-page 'demo/'",
     "build": "npx webpack --mode production",
-    "prepublish": "npm run build",
+    "prepublish": "npm run test && npm run build",
     "test": "npx jest"
   },
   "dependencies": {
