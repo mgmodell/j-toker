@@ -1,13 +1,6 @@
-const HtmlWebPackPlugin = require('html-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
 
-const dotEnv = new Dotenv();
-const demoHtml = new HtmlWebPackPlugin({
-  chunks: ['demo/index'],
-  filename: './demo/index.html',
-  minify: true,
-  template: './demo/index.html',
-});
+const dotenv = new Dotenv();
 
 module.exports = {
   devtool: 'source-map',
@@ -16,9 +9,13 @@ module.exports = {
     port: 8080,
     https: false,
   },
-  entry: {
-    index: './src/index.js',
-    'demo/index': './demo/src/index.js',
+  entry: './src/index.js',
+  output: {
+    path: __dirname + '/dist',
+    filename: 'index.js',
+    library: 'esToker',
+    libraryTarget: 'umd',
+    umdNamedDefine: true,
   },
   module: {
     rules: [
@@ -31,5 +28,5 @@ module.exports = {
       },
     ],
   },
-  plugins: [dotEnv, demoHtml],
+  plugins: [dotenv],
 };

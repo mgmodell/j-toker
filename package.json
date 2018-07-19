@@ -1,8 +1,8 @@
 {
   "name": "es-toker",
-  "version": "0.0.0-beta.1",
+  "version": "0.0.0-beta.2",
   "description": "Simple, secure token authentication for ecmascript.",
-  "main": "dist/index.js",
+  "module": "dist/index.js",
   "engines": {
     "node": "8.11.x"
   },
@@ -35,7 +35,7 @@
   "license": "WTFPL",
   "scripts": {
     "start": "webpack-dev-server --mode development --open-page 'demo/'",
-    "build": "npx webpack --mode production",
+    "build": "npx webpack --mode development",
     "prepublish": "npm run test && npm run build",
     "test": "npx jest"
   },

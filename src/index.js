@@ -93,7 +93,7 @@ function isIE() {
 
 let instance = null;
 
-export class Auth {
+class ESToker {
   constructor() {
     // Ensure singleton
     if (!instance) {
@@ -175,37 +175,6 @@ export class Auth {
     this.deleteData(SAVED_CREDS_KEY);
   }
 
-  // throw clear errors when dependencies are not met
-  checkDependencies() {
-    var errors = [],
-      warnings = [];
-
-    if (!window.localStorage && !Cookies) {
-      errors.push(
-        'This browser does not support localStorage. You must install ' +
-          'jquery-cookie to use es-toker with this browser.',
-      );
-    }
-
-    if (!qs.parse) {
-      errors.push('Dependency not met: jquery-qs.parse.');
-    }
-
-    if (!window.PubSub) {
-      warnings.push('PubSub not found. No auth events will be broadcast.');
-    }
-
-    if (errors.length) {
-      var errMessage = errors.join(' ');
-      throw 'es-toker: Please resolve the following errors: ' + errMessage;
-    }
-
-    if (warnings.length && console && console.warn) {
-      var warnMessage = warnings.join(' ');
-      console.warn('es-toker: Warning: ' + warnMessage);
-    }
-  }
-
   // need a way to destroy the current session without relying on `getConfig`.
   // otherwise we get into infinite loop territory.
   destroySession() {
@@ -252,7 +221,7 @@ export class Auth {
     }
 
     // normalize so opts is always an array of objects
-    if (opts.constructor !== Array) {
+    if (!Array.isArray(opts.constructor)) {
       // single config will always be called 'default' unless set
       // by previous session
       this.defaultConfigKey = INITIAL_CONFIG_KEY;
@@ -280,10 +249,6 @@ export class Auth {
         ...opts[i][configName],
       };
     }
-
-    // ensure that setup requirements have been met
-    // FIXME:
-    this.checkDependencies();
 
     // TODO: add config option for these bindings
     if (true) {
@@ -1073,7 +1038,7 @@ export class Auth {
   }
 }
 
-const AuthInstance = new Auth();
+const AuthInstance = new ESToker();
 window.esTokerAuthInstance = AuthInstance;
 
 export default AuthInstance;
