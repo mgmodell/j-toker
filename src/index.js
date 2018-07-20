@@ -48,10 +48,6 @@ const unescapeQuotes = function(val) {
   return val && val.replace(/("|')/g, '');
 };
 
-const isApiRequest = function(url) {
-  return url.match(AuthInstance.getApiUrl());
-};
-
 // simple string templating. stolen from:
 // http://stackoverflow.com/questions/14879866/javascript-templating-function-replace-string-and-dont-take-care-of-whitespace
 const tmpl = function(str, obj) {
@@ -303,6 +299,10 @@ export class ESToker {
   getApiUrl() {
     var config = this.getConfig();
     return config.proxyIf() ? config.proxyUrl : config.apiUrl;
+  }
+
+  isApiRequest(url) {
+    return url.match(this.getApiUrl());
   }
 
   // interpolate values of tokenFormat hash with ctx, return new hash
@@ -909,7 +909,7 @@ export class ESToker {
     const currentHeaders = this.retrieveData(SAVED_CREDS_KEY);
 
     // check config apiUrl matches the current request url
-    if (isApiRequest(input) && currentHeaders) {
+    if (this.isApiRequest(input) && currentHeaders) {
       init.headers = init.headers || new Headers();
 
       // bust IE cache
@@ -925,34 +925,39 @@ export class ESToker {
     return [input, init];
   };
 
-  // FIXME: rewrite for fetch
-  // update auth credentials after request is made to the API
+  /**
+   * Updates credential headers in storage after API response
+   *
+   * @param {Response} response
+   * @returns {Response} response
+   */
   updateAuthCredentials(response) {
+    if (!this.isApiRequest(response.url)) return response;
+
     // check config apiUrl matches the current response url
-    if (isApiRequest(response.url)) {
-      // set header for each key in `tokenFormat` config
-      var newHeaders = {};
+    const oldHeaders = this.retrieveData(SAVED_CREDS_KEY);
+    const newHeaders = {};
+    const tokenFormat = this.getConfig().tokenFormat;
 
-      // set flag to ensure that we don't accidentally nuke the headers
-      // if the response tokens aren't sent back from the API
-      var blankHeaders = true;
+    // set header for each key in `tokenFormat` config
+    // set header key + val for each key in `tokenFormat` config
+    for (var key in tokenFormat) {
+      const headerValue = response.headers.get(key);
 
-      // set header key + val for each key in `tokenFormat` config
-      for (var key in AuthInstance.getConfig().tokenFormat) {
-        newHeaders[key] = response.headers.get(key);
-
-        if (newHeaders[key]) {
-          blankHeaders = false;
-        }
+      if (headerValue) {
+        newHeaders[key] = headerValue;
       }
-
-      // persist headers for next request
-      if (!blankHeaders) {
-        this.persistData(SAVED_CREDS_KEY, newHeaders);
-      }
-
-      return response;
     }
+
+    // persist headers for next request
+    const haveNewHeaders = Object.keys(newHeaders).length > 0;
+
+    if (haveNewHeaders) {
+      const credentialHeaders = { ...oldHeaders, ...newHeaders };
+      this.persistData(SAVED_CREDS_KEY, credentialHeaders);
+    }
+
+    return response;
   }
 
   // stub for mock overrides
