@@ -1,6 +1,6 @@
 {
   "name": "es-toker",
-  "version": "0.0.0-beta.4.1",
+  "version": "0.0.0-beta.5",
   "description": "Simple, secure token authentication for ecmascript.",
   "module": "dist/index.js",
   "main": "dist/index.js",
