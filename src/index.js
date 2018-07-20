@@ -500,8 +500,10 @@ export class ESToker {
       return this.tokenValidationPromise;
     }
 
+    const savedCredentials = this.retrieveData(SAVED_CREDS_KEY);
+
     // no creds, reject promise without making API call
-    if (!this.retrieveData(SAVED_CREDS_KEY)) {
+    if (!savedCredentials) {
       // clear any saved session data
       this.invalidateTokens();
 
