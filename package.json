@@ -5,7 +5,7 @@
   "module": "dist/index.js",
   "main": "dist/index.js",
   "engines": {
-    "node": "8.11.x"
+    "node": "15.14.x"
   },
   "keywords": [
     "devise",
@@ -43,7 +43,8 @@
   "dependencies": {
     "fetch-intercept": "^2.2.3",
     "js-cookie": "^2.2.0",
-    "qs": "^6.5.2"
+    "qs": "^6.5.2",
+    "whatwg-fetch": "^3.6.2"
   },
   "peerDependencies": {
     "pubsub-js": "^1.5.2"
