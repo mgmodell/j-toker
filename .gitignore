@@ -1,5 +1,9 @@
 /node_modules/
 /bower_components/
+/undefined/
+**/._*
+**.DS_Store
+**.swp
 demo/dist
 npm-debug.log
 reports
