@@ -17,13 +17,20 @@
     "oauth2",
     "oauth"
   ],
-  "author": {
+  "authors": [
+  {
     "name": "Lynn Dylan Hurley",
     "email": "lynn.dylan.hurley@gmail.com",
     "url": "https://github.com/lynndylanhurley"
   },
-  "repository": "lynndylanhurley/j-toker",
-  "bugs": "https://github.com/lynndylanhurley/j-toker/issues",
+  {
+    "name": "Micah Gideon Modell",
+    "email": "micah.modell@gmail.com",
+    "url": "https://github.com/micah_gideon"
+  }
+  ]
+  "repository": "micah_gideon/j-toker",
+  "bugs": "https://github.com/micah_gideon/j-toker/issues",
   "license": "WTFPL",
   "scripts": {
     "test": "grunt"
