@@ -535,8 +535,8 @@
   // 4. url protocol, host, and path are preserved
   Auth.prototype.getLocationWithoutParams = function(keys) {
     // strip all values from both actual and anchor search params
-    var newSearch   = $.param(this.stripKeys(this.getSearchQs(), keys)),
-        newAnchorQs = $.param(this.stripKeys(this.getAnchorQs(), keys)),
+    var newSearch   = this.serialize(this.stripKeys(this.getSearchQs(), keys)),
+        newAnchorQs = this.serialize(this.stripKeys(this.getAnchorQs(), keys)),
         newAnchor   = root.location.hash.split('?')[0];
 
     if (newSearch) {
@@ -561,6 +561,25 @@
 
     return newLocation;
   };
+
+  /*
+   * Borrowed from https://stackoverflow.com/questions/1714786/query-string-encoding-of-a-javascript-object
+   */
+  Auth.prototype.serialize = function(obj, prefix){
+    var str = [],
+    p;
+    for (p in obj) {
+      if (obj.hasOwnProperty(p)) {
+        var k = prefix ? prefix + "[" + p + "]" : p,
+          v = obj[p];
+        str.push((v !== null && typeof v === "object") ?
+          serialize(v, k) :
+          encodeURIComponent(k) + "=" + encodeURIComponent(v));
+      }
+    }
+    return str.join("&");
+  
+  }
 
 
   Auth.prototype.stripKeys = function(obj, keys) {
@@ -1249,13 +1268,13 @@
 
   // stub for mock overrides
   Auth.prototype.setSearchQs = function(params) {
-    this.setRawSearch($.param(params));
+    this.setRawSearch(this.serialize(params));
     return this.getSearchQs();
   };
 
 
   Auth.prototype.setAnchorQs = function(params) {
-    this.setAnchorSearch($.param(params));
+    this.setAnchorSearch(this.serialize(params));
     return this.getAnchorQs();
   };
 
