@@ -17,18 +17,18 @@
     "oauth2",
     "oauth"
   ],
-  "authors": [
-  {
+  "author": {
     "name": "Lynn Dylan Hurley",
     "email": "lynn.dylan.hurley@gmail.com",
     "url": "https://github.com/lynndylanhurley"
   },
-  {
-    "name": "Micah Gideon Modell",
-    "email": "micah.modell@gmail.com",
-    "url": "https://github.com/micah_gideon"
-  }
-  ]
+  "contributors": [
+    {
+      "name": "Micah Gideon Modell",
+      "email": "micah.modell@gmail.com",
+      "url": "https://github.com/micah_gideon"
+    }
+  ],
   "repository": "micah_gideon/j-toker",
   "bugs": "https://github.com/micah_gideon/j-toker/issues",
   "license": "WTFPL",
@@ -38,7 +38,7 @@
   "dependencies": {
     "jquery": ">1.11.2",
     "jquery-deparam": "^0.1.0",
-    "jquery.cookie": "^1.4.1",
+    "js-cookie": "^2.2.1",
     "pubsub-js": "^1.5.2"
   },
   "devDependencies": {
