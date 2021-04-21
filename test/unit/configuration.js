@@ -416,7 +416,7 @@
 
     assert.ok(
       $.auth.configure.calledOnce,
-      '`configure` was only called once and only once'
+      '`configure` was called once and only once'
     );
 
     assert.strictEqual(

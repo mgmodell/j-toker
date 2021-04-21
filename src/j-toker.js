@@ -321,7 +321,7 @@
       }
 
       // save config to `configs` hash
-      this.configs[configName] = $.extend(
+      this.configs[configName] = Object.assign(
         {}, this.configBase, opts[i][configName]
       );
     }
@@ -401,7 +401,7 @@
     }
 
     // save user data, preserve bindings to original user object
-    $.extend(this.user, user);
+    Object.assign( this.user, user );
 
     this.user.signedIn = true;
     this.user.configName = this.getCurrentConfigName();
@@ -601,7 +601,7 @@
     var self = this;
 
     // jQuery has a strange way of returning error responses...
-    data = $.parseJSON((data && data.responseText) || '{}');
+    data = JSON.parse((data && data.responseText) || '{}');
 
     // always reject after 0 timeout to ensure that ajaxComplete callback
     // has run before promise is rejected
@@ -1290,7 +1290,7 @@
 
   // stub for mock overrides
   Auth.prototype.getQs = function() {
-    return $.extend(this.getSearchQs(), this.getAnchorQs());
+    return Object.assign( this.getSearchQs(), this.getAnchorQs() );
   };
 
 
